@@ -340,6 +340,14 @@ Build command: pip install -r requirements.txt
 Start command: uvicorn main:app --host 0.0.0.0 --port $PORT
 ```
 
+For RapidAPI proxy-only access, set this environment variable in Render:
+
+```text
+RAPIDAPI_PROXY_SECRET=your-rapidapi-proxy-secret
+```
+
+When this variable is set, paid endpoints require the `X-RapidAPI-Proxy-Secret` header. Public endpoints such as `/`, `/health`, `/api-info`, `/docs`, `/openapi.json`, and `/redoc` remain accessible.
+
 After deployment, test:
 
 ```bash

@@ -1,12 +1,15 @@
+import hmac
 import json
+import os
 import re
 import warnings
 from copy import deepcopy
 from json import JSONDecodeError
 from typing import Any, Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from json_repair import repair_json
 from jsonschema import Draft202012Validator, ValidationError
 from pydantic import BaseModel, Field, field_validator
@@ -15,6 +18,14 @@ from pydantic import BaseModel, Field, field_validator
 SERVICE_NAME = "JSONFix API"
 MAX_TEXT_LENGTH = 200_000
 MAX_BATCH_SIZE = 100
+RAPIDAPI_PROXY_SECRET_HEADER = "X-RapidAPI-Proxy-Secret"
+PROTECTED_ENDPOINTS = {
+    ("POST", "/repair"),
+    ("POST", "/extract"),
+    ("POST", "/validate"),
+    ("POST", "/repair-with-schema"),
+    ("POST", "/batch-repair"),
+}
 
 warnings.filterwarnings(
     "ignore",
@@ -36,6 +47,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def require_rapidapi_proxy_secret(request: Request, call_next):
+    configured_secret = os.getenv("RAPIDAPI_PROXY_SECRET")
+    endpoint_key = (request.method.upper(), request.url.path)
+
+    if configured_secret and endpoint_key in PROTECTED_ENDPOINTS:
+        provided_secret = request.headers.get(RAPIDAPI_PROXY_SECRET_HEADER, "")
+        if not hmac.compare_digest(provided_secret, configured_secret):
+            return JSONResponse(status_code=403, content={"detail": "Forbidden"})
+
+    return await call_next(request)
 
 
 class RepairRequest(BaseModel):
